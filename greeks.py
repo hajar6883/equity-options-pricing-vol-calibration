@@ -11,10 +11,13 @@ class AnalyticGreeks:
         self.o = option
         self.m = model
 
+    # def _d1d2(self):
+    #     d1 = self.m.d1(self.o.S, self.o.K, self.o.T)
+    #     d2 = self.m.d2(self.o.S, self.o.K, self.o.T)
+    #     return d1, d2
     def _d1d2(self):
-        d1 = self.m.d1(self.o.S, self.o.K, self.o.T)
-        d2 = self.m.d2(self.o.S, self.o.K, self.o.T)
-        return d1, d2
+       return self.m.d1d2(self.o)
+
 
 
 class CallGreeks(AnalyticGreeks):
@@ -39,6 +42,7 @@ class CallGreeks(AnalyticGreeks):
         return term1 + term2 + term3
 
     def rho(self):
+        " ! This return ∂Price / ∂r where r is in absolute units , Merket rho is usually per 1% change ( so divide by 100 :)"
         _, d2 = self._d1d2()
         return self.o.K * self.o.T * np.exp(-self.m.r * self.o.T) * Normal.cdf(d2)
 

@@ -1,5 +1,14 @@
-# Monte Carlo engine for exotics + comparison with BS.
+"""
 
-# Core GBM simulation
-# European MC pricing
-# Variance Reduction
+monte_carlo.py
+│
+├── GBMPathSimulator
+├── MonteCarloPricer
+├── VarianceReduction
+│   ├── Antithetic
+│   ├── ControlVariate
+│
+├── EuropeanPricerMC
+├── ExoticPricerMC
+└── Diagnostics & Convergence
+"""

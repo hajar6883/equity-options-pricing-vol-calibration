@@ -14,6 +14,12 @@ class BlackScholesModel:
     
     def d2(self, S, K, T ):
         return self.d1(S, K, T)  - self.sigma*sqrt(T)
+    
+    # helper for greeks ( to avoid duplicating logic)
+    def d1d2(self, option):
+        d1 = self.d1(option.S, option.K, option.T)
+        d2 = d1 - self.sigma * np.sqrt(option.T)
+        return d1, d2
         
         
 
