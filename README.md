@@ -4,25 +4,20 @@ This module is essential because it provides a benchmark price for Monte Carlo c
 
 
 ## Quick overview 
+```text
 pricing_engine/
-│
 ├── core/
-│   └──Black–Scholes Model
-│   └──Closed-form pricing for european options
-│   └──No-arbitrage bounds checks
-│
+│   └── Black–Scholes model (closed-form pricing)
+│       └── No-arbitrage bounds
 ├── greeks/
-│   └──analytical_greeks   # Delta, Gamma, Vega....
+│   └── analytical_greeks (Delta, Gamma, Vega, …)
 ├── implied_vol/
-│   └──root finding algorithms (Bisection, Newton and Brent methods)
-│
+│   └── root-finding (Bisection, Newton, Brent)
 ├── monte_carlo_pricer/
-│   └──GBM Path Simulator # configurable
-│   └──Variance Reduction # optional hooks
-│          ├── Antithetic
-│          ├── ControlVariate
-│   └── Monte Carlo Pricer # unified
-│   └── Diagnostics & Convergence
-│   
-├── notebooks/
-│   └──demos
+│   ├── GBM path simulator
+│   ├── Variance reduction (Antithetic, Control variate)
+│   └── Monte Carlo pricer + diagnostics
+└── notebooks/
+    └── demos
+```
+
