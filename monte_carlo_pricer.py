@@ -69,6 +69,29 @@ def GBM_simulation_antithetic(S0, r, sigma, T, N, M, seed=None):
 
     return S
 
+
+def local_vol_simulation(S0, r, LV, T, N, M, seed=None):
+    """
+    LV : function sigma = LV(t, S) returning scalar local vol
+    """
+    if seed is not None:
+        np.random.seed(seed)
+
+    dt = T / N
+    Z = np.random.randn(M, N)
+
+    S = np.zeros((M, N+1))
+    S[:,0] = S0
+
+    for t in range(1, N+1):
+        current_t = t*dt                         # continuous time
+        for i in range(M):
+            sigma = LV(current_t, S[i,t-1])[0,0]  # <-- Local vol from surface
+            S[i,t] = S[i,t-1] * np.exp((r-0.5*sigma**2)*dt + sigma*np.sqrt(dt)*Z[i,t-1])
+
+    return S
+
+
 # -------- Control variates -------------
 
 def control_variate_correction(X,Y, EY, beta=None):
@@ -83,14 +106,17 @@ def control_variate_correction(X,Y, EY, beta=None):
     return X_adj , beta
 
 
-
+# a dispatcher :
 def simulate_paths(method, *args, **kwargs):
     if method == "plain":
         return GBM_simulation(*args, **kwargs)
     elif method == "antithetic":
         return GBM_simulation_antithetic(*args, **kwargs)
+    elif method == "local_vol":
+        return local_vol_simulation(*args, **kwargs) 
     else:
         raise ValueError("Unknown simulation method")
+
     
 
 def mc_estimate(discounted_payoffs, alpha = .05):
@@ -117,12 +143,16 @@ def mc_pricer(
             sim_method="plain",
             use_control=False,
             alpha=0.05,
+            LV=None, 
             seed=None
         ):
     # simulate
-    paths = simulate_paths(
-        sim_method, S0, r, sigma, T, N, M, seed
-    )
+    if sim_method == "local_vol":
+        if LV is None:
+            raise ValueError("LV must be provided when using local_vol simulation")
+        paths = local_vol_simulation(S0, r, LV, T, N, M, seed)
+    else:
+        paths = simulate_paths(sim_method, S0, r, sigma, T, N, M, seed)
 
     # raw payoffs
     payoffs = np.array([payoff_fn(path, *payoff_args) for path in paths ])

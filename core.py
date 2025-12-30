@@ -5,22 +5,38 @@ from math import sqrt
 
 
 class BlackScholesModel:
-    def __init__(self, r,  sigma, q=0):
+    def __init__(self, r, q=0):
         self.r = r
-        self.q = q # continuous dividend yield for divendent paying assets
-        self.sigma = sigma
+        self.q = q
 
-    def d1(self, S, K, T ):
-        return (np.log(S/K) + (self.r - self.q + 0.5*self.sigma**2)*T) / (self.sigma*sqrt(T))
+    # -----------------------------------
+    # d1, d2 now always depend on sigma
+    # -----------------------------------
+    def d1(self, S, K, T, sigma):
+        return (np.log(S/K) + (self.r - self.q + 0.5*sigma**2)*T) / (sigma*np.sqrt(T))
     
-    def d2(self, S, K, T ):
-        return self.d1(S, K, T)  - self.sigma*sqrt(T)
+    def d2(self, S, K, T, sigma):
+        return self.d1(S, K, T, sigma) - sigma*np.sqrt(T)
+
+
+    # some pricing methods temporal just for the Local Vol workflow (will update the pricing scheme once implemented the one exotic ones ..??)
     
-    # helper for greeks ( to avoid duplicating logic)
-    def d1d2(self, option):
-        d1 = self.d1(option.S, option.K, option.T)
-        d2 = d1 - self.sigma * np.sqrt(option.T)
-        return d1, d2
+    def call_price(self, S, K, T, sigma):
+        if T <= 0: return max(S-K,0)
+        d1 = self.d1(S,K,T,sigma); d2 = self.d2(S,K,T,sigma)
+        return np.exp(-self.q*T)*S*Normal.cdf(d1) - np.exp(-self.r*T)*K*Normal.cdf(d2)
+
+    def put_price(self, S, K, T, sigma):
+        if T <= 0: return max(K-S,0)
+        d1 = self.d1(S,K,T,sigma); d2 = self.d2(S,K,T,sigma)
+        return np.exp(-self.r*T)*K*Normal.cdf(-d2) - np.exp(-self.q*T)*S*Normal.cdf(-d1)
+
+    #  greeks helper
+    def d1d2(self, S,K,T,sigma):
+        return self.d1(S,K,T,sigma), self.d2(S,K,T,sigma)
+
+    
+    
         
         
 

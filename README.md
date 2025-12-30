@@ -8,7 +8,7 @@ This module is essential because it provides a benchmark price for Monte Carlo c
 pricing_engine/
 ├── core/
 │   └── Black–Scholes model (closed-form pricing)
-│       └── No-arbitrage bounds
+│   
 ├── greeks/
 │   └── analytical_greeks (Delta, Gamma, Vega, …)
 ├── implied_vol/
