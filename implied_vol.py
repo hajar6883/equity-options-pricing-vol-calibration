@@ -6,7 +6,7 @@ from greeks import CallGreeks
 
 
 
-def find_IV_dichotomic( option , market_price , iv_low,iv_high, tolerance=1e-6):
+def find_IV_dichotomic( option , market_price , iv_low, iv_high, tolerance=1e-6):
     # monotonicity precondition check
 
     r = 0.05
