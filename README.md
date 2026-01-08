@@ -17,32 +17,4 @@ The codebase evolves from a prototype into a structured research framework, emph
 
 ## Quick layout 
 ```text
-equity-options-pricing-vol-calibration/
-│
-├── models/
-│   ├── black_scholes.py        # Black–Scholes analytic model
-│   ├── black76.py              # Black–76 pricing (forward-based)
-│   ├── heston.py               # Heston model (CF + MC simulation)
-│   └── local_vol.py            # Dupire local volatility construction
-│
-├── pricers/
-│   └── monte_carlo_pricer.py   # Generic Monte Carlo pricing engine
-│
-├── greeks/
-│   └── bs_greeks.py            # Analytic Greeks (Black–Scholes)
-│
-├── surfaces/
-│   ├── market_iv_surface.py    # Market IV surface construction & interpolation
-│   └── model_iv_surface.py     # Model-implied IV surfaces (Heston CF / MC)
-│
-├── utils/
-│   └── root_finding.py         # Generic numerical solvers (Brent, etc.)
-│
-├── experiments/
-│   ├── notebooks/              # Exploratory and validation notebooks
-│   └── scripts/                # Reproducible experiment scripts
-│
-└── README.md
-
-
-```
+equity-options-pricing-vol
