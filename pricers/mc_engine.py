@@ -18,7 +18,7 @@ from scipy.stats import norm
 """
 
 
-def GBM_simulation(S0, r, sigma, T, N, M, seed=None):
+def simulate_gbm_paths(S0, r, sigma, T, N, M, seed=None):
     if seed is not None:
         np.random.seed(seed)
 
@@ -70,7 +70,7 @@ def GBM_simulation_antithetic(S0, r, sigma, T, N, M, seed=None):
     return S
 
 
-def local_vol_simulation(S0, r, LV, T, N, M, seed=None):
+def simulate_local_vol_paths(S0, r, LV, T, N, M, seed=None):
     """
     LV : function sigma = LV(t, S) returning scalar local vol
     """
@@ -92,89 +92,47 @@ def local_vol_simulation(S0, r, LV, T, N, M, seed=None):
     return S
 
 
-# -------- Control variates -------------
 
-def control_variate_correction(X,Y, EY, beta=None):
-
-    cov_XY = np.cov(X, Y, ddof=1)[0, 1] # 2x2 -> get the scalar 
-    var_Y = np.var(Y, ddof=1)
-    if beta is None:
-        # optimal beta that make X_adj with the lower variance
-        beta = cov_XY / var_Y
-    
-    X_adj = X + beta*(EY - Y)
-    return X_adj , beta
 
 
 # a dispatcher :
-def simulate_paths(method, *args, **kwargs):
+def simulate_paths(
+        method,
+        S0,
+        r,
+        sigma,
+        T,
+        N,
+        M,
+        LV=None,
+        seed=None
+    ):
+    """
+    Central dispatcher for Monte Carlo path generation.
+
+    This function selects and executes the appropriate stochastic
+    path simulation method (e.g. GBM, antithetic GBM, local volatility)
+    based on the `method` argument. It provides a single entry point
+    for all path generation logic, ensuring that pricing code remains
+    agnostic to the underlying simulation scheme.
+
+    All model-specific requirements (such as a local volatility
+    surface for local-vol simulations) are validated here, making this
+    function the sole authority responsible for simulation selection
+    and configuration.
+    """
     if method == "plain":
-        return GBM_simulation(*args, **kwargs)
+        return simulate_gbm_paths(S0, r, sigma, T, N, M, seed)
     elif method == "antithetic":
-        return GBM_simulation_antithetic(*args, **kwargs)
+        return GBM_simulation_antithetic(S0, r, sigma, T, N, M, seed)
     elif method == "local_vol":
-        return local_vol_simulation(*args, **kwargs) 
-    else:
-        raise ValueError("Unknown simulation method")
-
-    
-
-def mc_estimate(discounted_payoffs, alpha = .05):
-
-    m = len(discounted_payoffs)
-    mean = np.mean(discounted_payoffs)
-    std = np.std(discounted_payoffs, ddof = 1)
-
-    # confidence interval:
-    stderr = std / np.sqrt(m)
-    z = norm.ppf(1 - alpha / 2) 
-
-    ci_low = mean - z * stderr
-    ci_high = mean + z * stderr
-
-    return mean, (ci_low, ci_high), stderr
-
-
-def mc_pricer(
-            payoff_fn,
-            payoff_args,
-            S0, r, sigma, T,
-            N, M,
-            sim_method="plain",
-            use_control=False,
-            alpha=0.05,
-            LV=None, 
-            seed=None
-        ):
-    # simulate
-    if sim_method == "local_vol":
         if LV is None:
-            raise ValueError("LV must be provided when using local_vol simulation")
-        paths = local_vol_simulation(S0, r, LV, T, N, M, seed)
+            raise ValueError("LV must be provided for local vol simulation")
+        return simulate_local_vol_paths(S0, r, LV, T, N, M, seed)
     else:
-        paths = simulate_paths(sim_method, S0, r, sigma, T, N, M, seed)
+        raise ValueError(f"Unknown simulation method: {method}")
 
-    # raw payoffs
-    payoffs = np.array([payoff_fn(path, *payoff_args) for path in paths ])
 
-    # discount
-    X = np.exp(-r * T) * payoffs
-
-    # control variate (optional)
-    if use_control:
-        # Discounted stock (control variable Y)
-        S_T = paths[:,-1]
-        Y = np.exp(-r * T) * S_T
-        EY = S0 # known exactly under the risk-neutral measure 
-
-        X , beta = control_variate_correction(X,Y,EY)
-    else:
-        beta = None
-
-    # estimate
-    price, ci, stderr = mc_estimate(X, alpha)
-
-    return price, ci, stderr, beta
 
 
 

@@ -161,13 +161,25 @@ def heston_call_price_cf(
 
 
 
-def simulate_heston_paths(
+
+def heston_mc_terminal_prices(
     S0, v0, r, q, T, kappa, theta, sigma, rho,
-    Z1, Z2
-):
+    n_steps=1000, n_paths=100000, Z1=None, Z2=None, seed=None):
     """
+    - Simulate Heston dynamics using Euler discretisation scheme
+    - Simulate log price (not price) and returns only terminal prices S_T
+    - Enforces positivity via truncation
     Z1, Z2 shape: (n_steps, n_paths)
     """
+
+    if seed is not None:
+        np.random.seed(seed)
+
+    if Z1 is None or Z2 is None:
+        Z1 = np.random.randn(n_steps, n_paths)
+        Z2 = np.random.randn(n_steps, n_paths)
+
+
     n_steps, n_paths = Z1.shape
     dt = T / n_steps
     sqdt = np.sqrt(dt)
