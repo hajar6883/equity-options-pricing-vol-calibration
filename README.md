@@ -24,6 +24,8 @@ equity-options-pricing-vol-calibration/
 │   ├── black76.py              # Black–76 pricing (forward-based)
 │   ├── heston.py               # Heston model (CF + MC simulation)
 │   └── local_vol.py            # Dupire local volatility construction
+│   └── SABR.py            # Forward-based dynamics (Black–76 framework)
+
 │
 ├── pricers/
 │   └── monte_carlo_pricer.py   # Generic Monte Carlo pricing engine
@@ -40,7 +42,4 @@ equity-options-pricing-vol-calibration/
 │
 ├── experiments/
 │   ├── notebooks/              # Exploratory and validation notebooks
-│   └── scripts/                # Reproducible experiment scripts
-│
-└── README.md
-```
+│   └── s
