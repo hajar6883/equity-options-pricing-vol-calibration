@@ -33,3 +33,12 @@ def hagan_SABR(K,F,T, alpha, beta, rho, nu, eps=1e-07):
 
     # sigma_imp(F,K)
     base = alpha / FK_beta
+    vol = base * ratio * (1 + (backbone_convexity + skew_interaction + smile_curvature) * T)
+    return vol
+
+
+
+
+
+    
+
