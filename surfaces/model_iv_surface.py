@@ -1,12 +1,9 @@
 
 import numpy as np
 from scipy.optimize import brentq
-from models.heston import heston_call_price_cf, heston_mc_terminal_prices
+from models.heston import heston_call_price_carr_madan, heston_price_mc_euler
 from models.black76 import black76_price
 from utils.root_finding import implied_vol_from_price
-
-
-
 
 
 
@@ -44,7 +41,7 @@ def heston_iv_surface_on_m_grid(
             K = m * F
 
             # Heston CF gives call; if you later want puts, use parity
-            price = heston_call_price_cf(
+            price = heston_call_price_carr_madan(
                 S0=spot, K=K, v0=v0, r=r, q=q, T=T,
                 kappa=kappa, theta=theta, sigma=sigma, rho=rho,
                 u_max=u_max, n_u=n_u
@@ -71,60 +68,37 @@ def heston_iv_surface_on_m_grid(
 
 
 
-
-def heston_iv_surface_on_m_grid_mc_euler(
-    spot,
-    m_grid,
-    maturities,
-    r, q,
-    heston_params,  # (v0, kappa, theta, sigma, rho)
-    n_steps=1000,
-    n_paths=10000,
-    seed=1234,
-    cp="C",
-    debug=False,
+def heston_price_surface_mc_euler(
+    spot, m_grid, maturities, r, q,
+    heston_params,
+    Zs,                  # FIXED random nbs
+    n_steps=400,
 ):
-    v0, kappa, theta, sigma, rho = heston_params
-    IV = np.full((len(maturities), len(m_grid)), np.nan, dtype=float)
+    """
+    Returns model CALL PRICE surface [T x m]
+    """
 
-    rng = np.random.default_rng(seed)
+    v0, kappa, theta, sigma, rho = heston_params
+    P = np.full((len(maturities), len(m_grid)), np.nan)
 
     for i, T in enumerate(maturities):
         df = np.exp(-r * T)
-        F = spot * np.exp((r - q) * T)
+        F  = spot * np.exp((r - q) * T)
 
-        # Common random numbers for this maturity (reduces smile noise)
-        Z1 = rng.standard_normal((n_steps, n_paths))
-        Z2 = rng.standard_normal((n_steps, n_paths))
+        Z1, Z2 = Zs[i]
 
-        # Simulate once per maturity
-        ST = heston_mc_terminal_prices(
-            S0=spot, v0=v0, r=r, q=q, T=T,
-            kappa=kappa, theta=theta, sigma=sigma, rho=rho,
+        ST = heston_price_mc_euler(
+            spot, v0, r, q, T,
+            kappa, theta, sigma, rho,
+            n_steps=n_steps,
             Z1=Z1, Z2=Z2
         )
 
         for j, m in enumerate(m_grid):
             K = m * F
+            P[i, j] = df * np.maximum(ST - K, 0.0).mean()
 
-            price = df * np.maximum(ST - K, 0.0).mean() # call price under MC
-            def price_fn(vol):
-                return black76_price(F, K, T, df, vol, cp)
-
-            try:
-                iv = implied_vol_from_price(
-                    price_fn=price_fn,
-                    market_price=price
-                )
-            except ValueError:
-                iv = np.nan
-
-            IV[i, j] = iv
-
-        if debug:
-            print(f"T={T:.4f}: finite={np.isfinite(IV[i]).sum()}/{len(m_grid)}")
-
-    return IV
+    return P
 
 
 

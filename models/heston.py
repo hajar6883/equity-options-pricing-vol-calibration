@@ -36,8 +36,7 @@ import numpy as np
 
 #a stable version 
 
-# ????????????
-import numpy as np
+
 
 def heston_cf(u, S0, v0, r, q, T, kappa, theta, sigma, rho):
     u = np.asarray(u, dtype=np.complex128)
@@ -96,14 +95,15 @@ def heston_cf(u, S0, v0, r, q, T, kappa, theta, sigma, rho):
 
 def _simpson(y: np.ndarray, x: np.ndarray) -> float:
     """
-    Simpson's rule for evenly spaced grid.
-    Requires odd number of points.
+    Simpson's rule for evenly spaced grid. Requires odd number of points.
     """
     n = len(x)
     if n < 3 or (n % 2 == 0):
         raise ValueError("Simpson requires an odd number of points >= 3.")
     h = x[1] - x[0]
     return (h / 3.0) * (y[0] + y[-1] + 4.0 * y[1:-1:2].sum() + 2.0 * y[2:-2:2].sum())
+
+
 
 
 def heston_call_price_cf(
@@ -157,12 +157,80 @@ def heston_call_price_cf(
     P1 = 0.5 + (1.0 / np.pi) * _simpson(integrand_P1, u)
 
     call = S0 * np.exp(-q * T) * P1 - K * np.exp(-r * T) * P2
-    return float(np.real(call))
+
+    return float(np.real(call)), float(np.real(P1)), float(np.real(P2)), float(integrand_P1.min()), float(integrand_P1.max()), float(integrand_P2.min()), float(integrand_P2.max())
 
 
+def heston_call_price_carr_madan(
+    S0: float,
+    K: float,
+    v0: float,
+    r: float,
+    q: float,
+    T: float,
+    kappa: float,
+    theta: float,
+    sigma: float,
+    rho: float,
+    alpha: float = 1.5,
+    u_max: float = 200.0,
+    n_u: int = 4001,
+) -> float:
+    """
+    Carr–Madan damped Fourier integral for European call price under Heston.
 
+    Uses your characteristic function heston_cf(u, S0, v0, r, q, T, kappa, theta, sigma, rho)
+    which returns phi(u) = E[exp(i u log S_T)] under the risk-neutral measure.
 
-def heston_mc_terminal_prices(
+    Formula (continuous):
+      C(K) = e^{-rT}/pi * ∫_0^∞ Re( e^{-i u k} * phi(u - i(α+1)) /
+                                  (α^2 + α - u^2 + i(2α+1)u) ) du
+      where k = ln(K)
+
+    Notes:
+    - alpha > 0 ensures integrand is square-integrable; alpha=1.5 is a common default.
+    - Integration is truncated at u_max and computed by Simpson.
+    - Returns discounted call price.
+
+    This is numerically much more stable than P1/P2 integrals, especially for short maturities.
+    """
+    if K <= 0.0:
+        raise ValueError("K must be positive.")
+    if T <= 0.0:
+        # payoff at maturity
+        return max(S0 - K, 0.0)
+
+    if n_u % 2 == 0:
+        n_u += 1
+
+    # integration grid over u in (0, u_max]
+    u = np.linspace(1e-10, u_max, n_u)
+    k = np.log(K)
+
+    # shifted argument for damping
+    u_shift = u - 1j * (alpha + 1.0)
+
+    # characteristic function evaluated at shifted argument
+    phi_shift = heston_cf(u_shift, S0, v0, r, q, T, kappa, theta, sigma, rho)
+
+    # denominator from Carr–Madan
+    denom = (alpha**2 + alpha - u**2) + 1j * (2.0 * alpha + 1.0) * u
+
+    integrand = np.exp(-1j * u * k) * phi_shift / denom
+    integrand = np.real(integrand)
+    integrand = np.nan_to_num(integrand, nan=0.0, posinf=0.0, neginf=0.0)
+
+    integral = _simpson(integrand, u)
+
+    call = np.exp(-r * T) * (integral / np.pi)
+
+    # enforce basic no-arbitrage bounds (small numerical safety)
+    upper = S0 * np.exp(-q * T)
+    call = float(np.clip(call, 0.0, upper))
+
+    return call
+
+def heston_price_mc_euler(
     S0, v0, r, q, T, kappa, theta, sigma, rho,
     n_steps=1000, n_paths=100000, Z1=None, Z2=None, seed=None):
     """
@@ -210,6 +278,3 @@ def heston_mc_terminal_prices(
 
 
 
-
-
-      
