@@ -105,7 +105,6 @@ def _simpson(y: np.ndarray, x: np.ndarray) -> float:
 
 
 
-
 def heston_call_price_cf(
     S0: float,
     K: float,
