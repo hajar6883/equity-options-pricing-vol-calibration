@@ -1,7 +1,7 @@
 
 import numpy as np
 from scipy.optimize import brentq
-from models.heston import heston_call_price_carr_madan, heston_price_mc_euler
+from models.heston import heston_call_price_cf, heston_call_price_carr_madan, heston_price_mc_euler
 from models.black76 import black76_price
 from utils.root_finding import implied_vol_from_price
 
@@ -40,23 +40,23 @@ def heston_iv_surface_on_m_grid(
         for j, m in enumerate(m_grid):
             K = m * F
 
-            # Heston CF gives call; if you later want puts, use parity
-            price = heston_call_price_carr_madan(
+            price = heston_call_price_cf(
                 S0=spot, K=K, v0=v0, r=r, q=q, T=T,
                 kappa=kappa, theta=theta, sigma=sigma, rho=rho,
-                u_max=u_max, n_u=n_u
+                u_max=u_max, n_u=n_u,
             )
 
-            # Map price -> Black-76 implied vol
+            # skip IV inversion for near-zero prices (deep OTM, IV inversion unreliable)
+            if price < df * 1e-6:
+                IV[i, j] = np.nan
+                continue
+
             def price_fn(vol):
                 return black76_price(F, K, T, df, vol, cp)
 
             try:
-                iv = implied_vol_from_price(
-                    price_fn=price_fn,
-                    market_price=price
-                )
-            except ValueError:
+                iv = implied_vol_from_price(price_fn=price_fn, market_price=price)
+            except (ValueError, RuntimeError):
                 iv = np.nan
 
             IV[i, j] = iv

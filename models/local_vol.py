@@ -15,23 +15,16 @@ def build_dupire_local_vol_surface(S0, market_surface, r=0.03):
     Store as 2D table or interpolation function"""
     K, T, IV_grid, _ = prepare_IV_grid(market_surface)
 
-    print('IV_grid:\n', IV_grid )
-
     # Interpolate IV(K,T)
     IV_interp = RectBivariateSpline(T, K, IV_grid)
 
     # convert IV-grid → Call Price grid
-
     C = np.zeros_like(IV_grid)
-    for i,t in enumerate(T):
-        for j,k in enumerate(K):
-            # sigma = float(IV_interp(t,k))
-            # sigma = IV_interp(t, k)[0,0]      
-            sigma = np.squeeze(IV_interp(t,k)) 
-
-            # print(sigma)
-            model = BlackScholesModel(r=r, sigma=sigma)            
-            C[i,j] = model.call_price(S0, k, t+1e-6, sigma) # avoid T=0
+    for i, t in enumerate(T):
+        for j, k in enumerate(K):
+            sigma = float(np.squeeze(IV_interp(t, k)))
+            model = BlackScholesModel(r=r, sigma=sigma)
+            C[i, j] = model.call_price(S0, k, t + 1e-6)  # avoid T=0
 
     # partial derivatives
     C_T  = np.gradient(C, T, axis=0)

@@ -2,6 +2,7 @@ import numpy as np
 import yfinance as yf
 import pandas as pd 
 from scipy.interpolate import PchipInterpolator, CubicSpline
+from datetime import datetime
 
 
 
@@ -22,7 +23,9 @@ def prepare_IV_grid(market_surface):
     maturities = list(market_surface.keys())
     strikes = sorted(list(set(k for d in market_surface.values() for k in d.keys())))
     
-    T = np.arange(len(maturities))                 # later convert to year fraction
+
+    today = datetime.today()
+    T = [(datetime.strptime(m, "%Y-%m-%d") - today).days / 365 for m in maturities]
     K = np.array(strikes)
 
     Z = np.zeros((len(T), len(K)))
@@ -80,6 +83,8 @@ def build_market_iv_surface_moneyness(
         calls = calls[
             calls["impliedVolatility"].notna()
             & (calls["openInterest"] >= min_oi)
+            & ~((calls["bid"] == 0) & (calls["ask"] == 0))  # drop stale/crossed quotes
+            & (calls["impliedVolatility"] > 0.01)            # drop yfinance placeholder IVs
         ]
         if calls.empty:
             continue

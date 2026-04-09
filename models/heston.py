@@ -34,63 +34,60 @@ import numpy as np
 
 #     return np.exp(C + D * v0 + iu * x0)
 
-#a stable version 
+#a stable version
 
+
+def feller_satisfied(kappa: float, theta: float, sigma: float) -> bool:
+    """
+    Feller condition: 2*kappa*theta > sigma^2
+    When satisfied, the variance process v_t stays strictly positive a.s.
+    Calibrated params that violate this should be treated with suspicion.
+    """
+    return 2.0 * kappa * theta > sigma ** 2
 
 
 def heston_cf(u, S0, v0, r, q, T, kappa, theta, sigma, rho):
+    """
+    Characteristic function of log(S_T) under Heston.
+
+    Uses the 'little trap' formulation (Albrecher et al. 2007):
+        b = kappa - rho*sigma*iu
+        d = sqrt(b^2 + sigma^2*(iu + u^2))
+        g = (b - d) / (b + d)   →  |g| < 1 for real u, no flip needed
+
+    The previous version used g = (b+d)/(b-d) and flipped when |g|>1,
+    but still used (b+d) in the C/D formulas after the flip — giving the
+    wrong branch and |phi(u)| >> 1 for real u (bug confirmed numerically).
+    """
     u = np.asarray(u, dtype=np.complex128)
-    x0 = np.log(S0)
-    a = kappa * theta
-    b = kappa
     iu = 1j * u
 
-    out = np.empty_like(u, dtype=np.complex128)
-    mask0 = np.isclose(u, 0.0)
-    if np.any(mask0):
-        out[mask0] = 1.0 + 0.0j
+    b = kappa - rho * sigma * iu                          # scalar broadcast
+    disc = b**2 + sigma**2 * (iu + u**2)
+    d = np.sqrt(disc)
 
-    um = ~mask0
-    if not np.any(um):
-        return out
-
-    uu = u[um]
-    iuu = iu[um]
-
-    d = np.sqrt((rho * sigma * iuu - b)**2 + sigma**2 * (iuu + uu**2))
-
-    g = (b - rho * sigma * iuu + d) / (b - rho * sigma * iuu - d)
-
-    # enforce |g| < 1 (stabilization)
-    flip = np.abs(g) > 1.0
-    g[flip] = 1.0 / g[flip]
+    g = (b - d) / (b + d)
 
     exp_neg_dT = np.exp(-d * T)
 
-    one_minus_g = 1.0 - g
+    one_minus_g     = 1.0 - g
     one_minus_g_exp = 1.0 - g * exp_neg_dT
 
     eps = 1e-14
-    one_minus_g = np.where(np.abs(one_minus_g) < eps, eps + 0j, one_minus_g)
+    one_minus_g     = np.where(np.abs(one_minus_g)     < eps, eps + 0j, one_minus_g)
     one_minus_g_exp = np.where(np.abs(one_minus_g_exp) < eps, eps + 0j, one_minus_g_exp)
 
-    C = (r - q) * iuu * T + (a / sigma**2) * (
-        (b - rho * sigma * iuu + d) * T
-        - 2.0 * np.log(one_minus_g_exp / one_minus_g)
+    C = (r - q) * iu * T + (kappa * theta / sigma**2) * (
+        (b - d) * T - 2.0 * np.log(one_minus_g_exp / one_minus_g)
     )
+    D = (b - d) / sigma**2 * (1.0 - exp_neg_dT) / one_minus_g_exp
 
-    D = ((b - rho * sigma * iuu + d) / sigma**2) * ((1.0 - exp_neg_dT) / one_minus_g_exp)
+    expo = C + D * v0 + iu * np.log(S0)
 
-    expo = C + D * v0 + iuu * x0
-
-    # ---- overflow guard: clip real part of exponent ----
-    # exp(700) is near float overflow; keep margin
     re = np.real(expo)
-    re_clip = np.clip(re, -700.0, 700.0)
-    expo = re_clip + 1j * np.imag(expo)
+    expo = np.clip(re, -700.0, 700.0) + 1j * np.imag(expo)
 
-    out[um] = np.exp(expo)
-    return out
+    return np.exp(expo)
 
 
 def _simpson(y: np.ndarray, x: np.ndarray) -> float:
@@ -157,7 +154,40 @@ def heston_call_price_cf(
 
     call = S0 * np.exp(-q * T) * P1 - K * np.exp(-r * T) * P2
 
-    return float(np.real(call)), float(np.real(P1)), float(np.real(P2)), float(integrand_P1.min()), float(integrand_P1.max()), float(integrand_P2.min()), float(integrand_P2.max())
+    return float(np.real(call))
+
+
+def heston_call_price_cf_debug(
+    S0, K, v0, r, q, T, kappa, theta, sigma, rho,
+    u_max=200.0, n_u=4001,
+):
+    """Same as heston_call_price_cf but returns (call, P1, P2, integ diagnostics)
+    for numerical validation only — do not use in calibration loops."""
+    if n_u % 2 == 0:
+        n_u += 1
+
+    u = np.linspace(1e-6, u_max, n_u)
+    lnK = np.log(K)
+
+    phi_u = heston_cf(u, S0, v0, r, q, T, kappa, theta, sigma, rho)
+    integrand_P2 = np.real(np.exp(-1j * u * lnK) * phi_u / (1j * u))
+    integrand_P2 = np.nan_to_num(integrand_P2)
+
+    phi_um_i = heston_cf(u - 1j, S0, v0, r, q, T, kappa, theta, sigma, rho)
+    phi_minus_i = S0 * np.exp((r - q) * T)
+    integrand_P1 = np.real(np.exp(-1j * u * lnK) * (phi_um_i / phi_minus_i) / (1j * u))
+
+    P2 = 0.5 + (1.0 / np.pi) * _simpson(integrand_P2, u)
+    P1 = 0.5 + (1.0 / np.pi) * _simpson(integrand_P1, u)
+    call = S0 * np.exp(-q * T) * P1 - K * np.exp(-r * T) * P2
+
+    return (
+        float(np.real(call)),
+        float(np.real(P1)),
+        float(np.real(P2)),
+        float(integrand_P1.min()), float(integrand_P1.max()),
+        float(integrand_P2.min()), float(integrand_P2.max()),
+    )
 
 
 def heston_call_price_carr_madan(
