@@ -49,9 +49,9 @@ def simulate_gbm_paths(S0, r, sigma, T, N, M, seed=None):
 
 def GBM_simulation_antithetic(S0, r, sigma, T, N, M, seed=None):
 
+    assert M % 2 == 0, "M must be even for antithetic variates"
     if seed is not None:
         np.random.seed(seed)
-        assert M % 2 == 0, "M must be even for antithetic variates"
 
 
     dt = T / N

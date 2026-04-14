@@ -63,7 +63,13 @@ def build_market_iv_surface_moneyness(
         - False: m = K / S0  (spot money can be misleading ATM today is not ATM at maturity when there is carry)
     """
     ticker = yf.Ticker(ticker_symbol)
-    spot = float(ticker.info["currentPrice"])
+    info = ticker.info
+    spot = float(
+        info.get("currentPrice")
+        or info.get("regularMarketPrice")
+        or info.get("previousClose")
+        or ticker.fast_info["last_price"]
+    )
     expiries = list(ticker.options)[:max_expiries]
 
     val_date = pd.Timestamp.now(tz="UTC").normalize()
@@ -78,31 +84,32 @@ def build_market_iv_surface_moneyness(
             continue
 
         chain = ticker.option_chain(expiry)
-        calls = chain.calls.copy()
+        F = spot * np.exp((r - q) * T) if use_forward else spot
 
-        calls = calls[
-            calls["impliedVolatility"].notna()
-            & (calls["openInterest"] >= min_oi)
-            & ~((calls["bid"] == 0) & (calls["ask"] == 0))  # drop stale/crossed quotes
-            & (calls["impliedVolatility"] > 0.01)            # drop yfinance placeholder IVs
-        ]
-        if calls.empty:
-            continue
+        def _filter(df):
+            return df[
+                df["impliedVolatility"].notna()
+                & (df["openInterest"] >= min_oi)
+                & ~((df["bid"] == 0) & (df["ask"] == 0))
+                & (df["impliedVolatility"] > 0.01)
+            ]
 
-        strikes = calls["strike"].to_numpy(dtype=float)
-        ivs = calls["impliedVolatility"].to_numpy(dtype=float)
+        calls = _filter(chain.calls.copy())
+        puts  = _filter(chain.puts.copy())
 
-        # forward or spot moneyness
-        if use_forward:
-            F = spot * np.exp((r - q) * T)
-            m = strikes / F
-        else:
-            m = strikes / spot
+        # OTM calls (m >= 1) + OTM puts (m < 1) — full smile coverage
+        call_strikes = calls["strike"].to_numpy(dtype=float)
+        call_ivs     = calls["impliedVolatility"].to_numpy(dtype=float)
+        call_m       = call_strikes / F
+        otm_call_mask = call_m >= 1.0
 
-        # OTM calls only
-        otm_mask = m >= 1.0
-        m = m[otm_mask]
-        ivs = ivs[otm_mask]
+        put_strikes = puts["strike"].to_numpy(dtype=float)
+        put_ivs     = puts["impliedVolatility"].to_numpy(dtype=float)
+        put_m       = put_strikes / F
+        otm_put_mask = put_m < 1.0
+
+        m   = np.concatenate([put_m[otm_put_mask],   call_m[otm_call_mask]])
+        ivs = np.concatenate([put_ivs[otm_put_mask], call_ivs[otm_call_mask]])
 
         if len(m) < 5:
             continue

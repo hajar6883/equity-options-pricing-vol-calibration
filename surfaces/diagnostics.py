@@ -13,13 +13,12 @@ def iv_error_surfaces(Z_model, Z_mkt):
 
     mask = common_mask(Z_model= Z_model, Z_mkt=Z_mkt)
 
-    diff = np.full_like(Z_model, np.nan)
-    rel  = np.full_like(Z_model, np.nan)
+    diff   = np.full_like(Z_model, np.nan)
+    rel    = np.full_like(Z_model, np.nan)
     logerr = np.full_like(Z_model, np.nan)
 
-    diff = Z_model - Z_mkt
-    diff[mask] = Z_model[mask] - Z_mkt[mask]
-    rel[mask]  = diff[mask] / Z_mkt[mask]
+    diff[mask]   = Z_model[mask] - Z_mkt[mask]
+    rel[mask]    = diff[mask] / Z_mkt[mask]
     logerr[mask] = np.log(Z_model[mask] / Z_mkt[mask])
 
     return diff, rel, logerr
